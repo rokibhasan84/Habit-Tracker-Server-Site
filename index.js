@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import { MongoClient, ServerApiVersion } from "mongodb";
 import dotenv from "dotenv";
+import { ObjectId } from "mongodb";
 
 dotenv.config();
 
@@ -57,6 +58,24 @@ async function run() {
       }
     });
 
+
+// ✅ Delete habit by id
+app.delete("/habits/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const result = await habitsCollection.deleteOne(query);
+    if (result.deletedCount === 1) {
+      res.send({ success: true, message: "Habit deleted successfully!" });
+    } else {
+      res.status(404).send({ success: false, message: "Habit not found!" });
+    }
+  } catch (error) {
+    console.error("Delete error:", error);
+    res.status(500).send({ success: false, message: "Server error while deleting habit." });
+  }
+});
+
     // ✅ Get habits by user email
 app.get("/habits/:email", async (req, res) => {
   try {
@@ -69,6 +88,37 @@ app.get("/habits/:email", async (req, res) => {
     res.status(500).send({ message: "Failed to load user's habits" });
   }
 });
+
+
+// ✅ Update habit by id
+app.put("/habits/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updatedHabit = req.body;
+    const query = { _id: new ObjectId(id) };
+
+    const updateDoc = {
+      $set: {
+        title: updatedHabit.title,
+        category: updatedHabit.category,
+        description: updatedHabit.description,
+        reminderTime: updatedHabit.reminderTime,
+        UpdateAt: new Date(),
+      },
+    };
+
+    const result = await habitsCollection.updateOne(query, updateDoc);
+    if (result.modifiedCount > 0) {
+      res.send({ success: true, message: "Habit updated successfully!" });
+    } else {
+      res.status(404).send({ success: false, message: "Habit not found or unchanged" });
+    }
+  } catch (error) {
+    console.error("Update error:", error);
+    res.status(500).send({ success: false, message: "Server error while updating habit" });
+  }
+});
+
 
     // ✅ সার্ভার লিসেন এখানে রাখো
     app.listen(port, () => {
