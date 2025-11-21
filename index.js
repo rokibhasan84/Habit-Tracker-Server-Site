@@ -236,14 +236,7 @@ app.put("/habits/complete/:id", async (req, res) => {
       }
     });
 
-    // START SERVER
-    app.listen(port, () => {
-      console.log(`🚀 Server running on port ${port}`);
-    });
-
-  } catch (err) {
-    console.error("❌ MongoDB Connection Error:", err);
-  }
+   
 }
 
 run();
