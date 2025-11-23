@@ -70,6 +70,7 @@ async function run() {
         const result = await habitsCollection
           .find({ isPublic: true })
           .sort({ createdAt: -1 })
+          
           .toArray();
 
         res.send(result);
@@ -77,6 +78,21 @@ async function run() {
         res.status(500).send({ error: "Failed to load public habits" });
       }
     });
+    //Home Card
+    app.get("/public-habits/home-card", async (req, res) => {
+      try {
+        const result = await habitsCollection
+          .find({ isPublic: true })
+          .sort({ createdAt: -1 })
+          .limit(6)
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to load public habits" });
+      }
+    });
+    
 
     // GET HABITS BY USER EMAIL
     app.get("/habits/:email", async (req, res) => {
@@ -235,12 +251,15 @@ app.put("/habits/complete/:id", async (req, res) => {
         res.status(500).send({ message: "Failed to fetch habits" });
       }
     });
+    
 
+  app.listen(port, () => {
+      console.log(`🚀 Server running on port ${port}`);
+    });
+
+  } catch (err) {
+    console.error("❌ MongoDB Connection Error:", err);
   }
-
-app.listen(port, () =>{
-  console.log(`Server running on port $(port)`);
-})
-};
+}
 
 run();
