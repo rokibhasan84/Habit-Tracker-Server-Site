@@ -171,76 +171,55 @@ app.get("/habits/details/:id", async (req, res) => {
 
     // Mark habit as complete for today
 // Mark habit as complete (with date + time)
-app.put("/habits/complete/:id", async (req, res) => {
+app.put("/habits/toggle-complete/:id", async (req, res) => {
   try {
     const id = req.params.id;
-
     const habit = await habitsCollection.findOne({ _id: new ObjectId(id) });
+
     if (!habit) {
       return res.status(404).send({ message: "Habit not found" });
     }
 
-    // Today's Date + Time
-    const now = new Date();
-    const todayDate = now.toISOString().split("T")[0]; // yyyy-mm-dd
-    const formattedTime = now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
+    const today = new Date().toDateString();
 
-    const todayRecord = `${todayDate} ${formattedTime}`;
+    let updatedCompletion = habit.completionDates || [];
+    let newStatus = habit.status;
 
-    // Check if today already completed
-    const alreadyCompleted = habit.completionHistory?.some((entry) =>
-      entry.startsWith(todayDate),
-    );
-
-    if (alreadyCompleted) {
-      return res.status(400).send({
-        message: "Already completed today!",
-      });
+    // ✔ Already completed today → UNDO (remove today entry)
+    if (updatedCompletion.some(date => new Date(date).toDateString() === today)) {
+      updatedCompletion = updatedCompletion.filter(
+        date => new Date(date).toDateString() !== today
+      );
+      newStatus = "pending";
+    } 
+    // ✔ Not completed today → ADD today
+    else {
+      updatedCompletion.push(new Date());
+      newStatus = "completed";
     }
 
-    // Add to completion history array
-    const updatedHistory = [...(habit.completionHistory || []), todayRecord];
-
-    // Streak calculation
-    let streak = habit.streak || 0;
-
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split("T")[0];
-
-    const completedYesterday = habit.completionHistory?.some((entry) =>
-      entry.startsWith(yesterdayStr)
-    );
-
-    if (completedYesterday) streak += 1;
-    else streak = 1;
-
-    // Update database
-    const result = await habitsCollection.findOneAndUpdate(
+    await habitsCollection.updateOne(
       { _id: new ObjectId(id) },
       {
         $set: {
-          completionHistory: updatedHistory,
-          streak: streak,
-          updatedAt: new Date(),
+          completionDates: updatedCompletion,
+          status: newStatus,
         },
-      },
-      { returnDocument: "after" }
+      }
     );
 
     res.send({
       success: true,
-      updatedHabit: result,
+      status: newStatus,
+      completionDates: updatedCompletion,
     });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).send({ message: "Server error while marking complete" });
+    console.log(error);
+    res.status(500).send({ message: "Server error" });
   }
 });
+
 
     // GET ALL HABITS
     app.get("/habits", async (req, res) => {
