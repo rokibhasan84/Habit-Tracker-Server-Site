@@ -169,8 +169,7 @@ app.get("/habits/details/:id", async (req, res) => {
       }
     });
 
-    // Mark habit as complete for today
-// Mark habit as complete (with date + time)
+// Toggle Complete with streak calculation
 app.put("/habits/toggle-complete/:id", async (req, res) => {
   try {
     const id = req.params.id;
@@ -180,46 +179,118 @@ app.put("/habits/toggle-complete/:id", async (req, res) => {
       return res.status(404).send({ message: "Habit not found" });
     }
 
-    const today = new Date().toDateString();
+    const today = new Date();
+    const todayStr = today.toDateString();
 
-    let updatedCompletion = habit.completionDates || [];
-    let newStatus = habit.status;
+    let completionDates = habit.completionDates || [];
+    let status = habit.status;
 
-    // ✔ Already completed today → UNDO (remove today entry)
-    if (updatedCompletion.some(date => new Date(date).toDateString() === today)) {
-      updatedCompletion = updatedCompletion.filter(
-        date => new Date(date).toDateString() !== today
+    // Check if already completed today
+    const alreadyCompleted = completionDates.some(
+      (d) => new Date(d).toDateString() === todayStr
+    );
+
+    // UNDO today
+    if (alreadyCompleted) {
+      completionDates = completionDates.filter(
+        (d) => new Date(d).toDateString() !== todayStr
       );
-      newStatus = "pending";
-    } 
-    // ✔ Not completed today → ADD today
-    else {
-      updatedCompletion.push(new Date());
-      newStatus = "completed";
+
+      // Recalculate streak after undo
+      let streak = calculateStreak(completionDates);
+
+      await habitsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            completionDates,
+            status: "pending",
+            streak,
+          },
+        }
+      );
+
+      return res.send({
+        success: true,
+        status: "pending",
+        completionDates,
+        streak,
+      });
     }
+
+    // ADD today
+    completionDates.push(today);
+
+    // SORT dates
+    completionDates.sort((a, b) => new Date(a) - new Date(b));
+
+    // Calculate new streak
+    let streak = calculateStreak(completionDates);
 
     await habitsCollection.updateOne(
       { _id: new ObjectId(id) },
       {
         $set: {
-          completionDates: updatedCompletion,
-          status: newStatus,
+          completionDates,
+          status: "completed",
+          streak,
         },
       }
     );
 
     res.send({
       success: true,
-      status: newStatus,
-      completionDates: updatedCompletion,
+      status: "completed",
+      completionDates,
+      streak,
     });
-
   } catch (error) {
-    console.log(error);
+    console.error(error);
     res.status(500).send({ message: "Server error" });
   }
 });
 
+// Helper function to calculate streak
+function calculateStreak(dates) {
+  if (dates.length === 0) return 0;
+
+  let streak = 1;
+  for (let i = dates.length - 1; i > 0; i--) {
+    const current = new Date(dates[i]);
+    const previous = new Date(dates[i - 1]);
+
+    const diff = (current - previous) / (1000 * 60 * 60 * 24);
+
+    if (diff === 1) {
+      streak++;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+
+// Toggle only the status field (completed <-> pending) WITHOUT touching completionDates
+app.put("/habits/toggle-status/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const habit = await habitsCollection.findOne({ _id: new ObjectId(id) });
+    if (!habit) return res.status(404).send({ success: false, message: "Habit not found" });
+
+    const newStatus = habit.status === "completed" ? "pending" : "completed";
+
+    await habitsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status: newStatus, updatedAt: new Date() } }
+    );
+
+    res.send({ success: true, status: newStatus });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ success: false, message: "Server error" });
+  }
+});
 
     // GET ALL HABITS
     app.get("/habits", async (req, res) => {
