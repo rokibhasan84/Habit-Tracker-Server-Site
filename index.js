@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT;
 
 app.use(cors());
 app.use(express.json());
@@ -25,7 +25,7 @@ let habitsCollection;
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     const db = client.db("habitDB");
     habitsCollection = db.collection("habits");
 
@@ -300,16 +300,26 @@ app.put("/habits/toggle-status/:id", async (req, res) => {
       } catch (err) {
         res.status(500).send({ message: "Failed to fetch habits" });
       }
-    });
-    
+    })
 
-  app.listen(port, () => {
+  // await client.db("admin").command({ ping: 1 });
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
+  } finally {
+    // Ensures that the client will close when you finish/error
+    // await client.close();
+  }
+    
+}
+
+run().catch(console.dir);
+
+app.get("/", (req, res) => {
+  res.send("Habit Tracker Server is running!");
+});
+
+app.listen(port, () => {
       console.log(`🚀 Server running on port ${port}`);
     });
 
-  } catch (err) {
-    console.error("❌ MongoDB Connection Error:", err);
-  }
-}
-
-run();
